@@ -65,6 +65,9 @@ ValidateCreateEncounterRequest(const nlohmann::json& body) {
     if (!body.contains("clinicalData")) {
         return ValidationError("clinicalData", "is required");
     }
+    if (!body.at("clinicalData").is_object()) {
+        return ValidationError("clinicalData", "must be an object");
+    }
 
     domain::CreateEncounterInput input{};
     auto patientId = GetRequiredStringField(body, "patientId");

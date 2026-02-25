@@ -102,6 +102,51 @@ TEST_CASE("ValidateCreateEncounterRequest validates patientId type") {
     REQUIRE(error.details->at(0).message == "must be a string");
 }
 
+TEST_CASE("ValidateCreateEncounterRequest validates providerId type") {
+    nlohmann::json body = nlohmann::json::object();
+    body["patientId"] = "patient-1";
+    body["providerId"] = nlohmann::json::object();
+    body["encounterType"] = "visit";
+    body["encounterDate"] = "2026-02-25";
+    body["clinicalData"] = nlohmann::json::object();
+
+    const auto result = encounter_service::http::ValidateCreateEncounterRequest(body);
+    REQUIRE(result.index() == 1);
+    const auto error = std::get<encounter_service::domain::DomainError>(result);
+    REQUIRE(error.details->at(0).path == "providerId");
+    REQUIRE(error.details->at(0).message == "must be a string");
+}
+
+TEST_CASE("ValidateCreateEncounterRequest validates encounterType type") {
+    nlohmann::json body = nlohmann::json::object();
+    body["patientId"] = "patient-1";
+    body["providerId"] = "provider-1";
+    body["encounterType"] = nlohmann::json::object();
+    body["encounterDate"] = "2026-02-25";
+    body["clinicalData"] = nlohmann::json::object();
+
+    const auto result = encounter_service::http::ValidateCreateEncounterRequest(body);
+    REQUIRE(result.index() == 1);
+    const auto error = std::get<encounter_service::domain::DomainError>(result);
+    REQUIRE(error.details->at(0).path == "encounterType");
+    REQUIRE(error.details->at(0).message == "must be a string");
+}
+
+TEST_CASE("ValidateCreateEncounterRequest validates encounterDate type") {
+    nlohmann::json body = nlohmann::json::object();
+    body["patientId"] = "patient-1";
+    body["providerId"] = "provider-1";
+    body["encounterType"] = "visit";
+    body["encounterDate"] = nlohmann::json::object();
+    body["clinicalData"] = nlohmann::json::object();
+
+    const auto result = encounter_service::http::ValidateCreateEncounterRequest(body);
+    REQUIRE(result.index() == 1);
+    const auto error = std::get<encounter_service::domain::DomainError>(result);
+    REQUIRE(error.details->at(0).path == "encounterDate");
+    REQUIRE(error.details->at(0).message == "must be a string");
+}
+
 TEST_CASE("ValidateCreateEncounterRequest validates encounterDate parse") {
     nlohmann::json body = nlohmann::json::object();
     body["patientId"] = "patient-1";
@@ -117,6 +162,34 @@ TEST_CASE("ValidateCreateEncounterRequest validates encounterDate parse") {
     REQUIRE(error.code == encounter_service::domain::DomainErrorCode::Validation);
     REQUIRE(error.details.has_value());
     REQUIRE(error.details->at(0).path == "encounterDate");
+}
+
+TEST_CASE("ValidateCreateEncounterRequest accepts date only encounterDate") {
+    nlohmann::json body = nlohmann::json::object();
+    body["patientId"] = "patient-1";
+    body["providerId"] = "provider-1";
+    body["encounterType"] = "visit";
+    body["encounterDate"] = "2026-02-25";
+    body["clinicalData"] = nlohmann::json::object();
+
+    const auto result = encounter_service::http::ValidateCreateEncounterRequest(body);
+    REQUIRE(result.index() == 0);
+}
+
+TEST_CASE("ValidateCreateEncounterRequest validates clinicalData type") {
+    nlohmann::json body = nlohmann::json::object();
+    body["patientId"] = "patient-1";
+    body["providerId"] = "provider-1";
+    body["encounterType"] = "visit";
+    body["encounterDate"] = "2026-02-25";
+    body["clinicalData"] = "not-an-object";
+
+    const auto result = encounter_service::http::ValidateCreateEncounterRequest(body);
+    REQUIRE(result.index() == 1);
+    const auto error = std::get<encounter_service::domain::DomainError>(result);
+    REQUIRE(error.details.has_value());
+    REQUIRE(error.details->at(0).path == "clinicalData");
+    REQUIRE(error.details->at(0).message == "must be an object");
 }
 
 TEST_CASE("ValidateEncounterQuery parses from and to timestamps") {
@@ -138,6 +211,18 @@ TEST_CASE("ValidateEncounterQuery parses from and to timestamps") {
     REQUIRE(filters.encounterDateTo.has_value());
 }
 
+TEST_CASE("ValidateEncounterQuery parses encounterType passthrough") {
+    httplib::Request request{};
+    request.params["encounterType"] = "follow-up";
+
+    const auto result = encounter_service::http::ValidateEncounterQuery(request);
+    REQUIRE(result.index() == 0);
+
+    const auto filters = std::get<encounter_service::storage::EncounterQueryFilters>(result);
+    REQUIRE(filters.encounterType.has_value());
+    REQUIRE(*filters.encounterType == "follow-up");
+}
+
 TEST_CASE("ValidateEncounterQuery returns validation error for invalid from") {
     httplib::Request request{};
     request.params["from"] = "bad-date";
@@ -149,6 +234,15 @@ TEST_CASE("ValidateEncounterQuery returns validation error for invalid from") {
     REQUIRE(error.code == encounter_service::domain::DomainErrorCode::Validation);
     REQUIRE(error.details.has_value());
     REQUIRE(error.details->at(0).path == "from");
+}
+
+TEST_CASE("ValidateEncounterQuery returns validation error for empty from") {
+    httplib::Request request{};
+    request.params["from"] = "";
+
+    const auto result = encounter_service::http::ValidateEncounterQuery(request);
+    REQUIRE(result.index() == 1);
+    REQUIRE(std::get<encounter_service::domain::DomainError>(result).details->at(0).path == "from");
 }
 
 TEST_CASE("ValidateEncounterQuery returns validation error for invalid to") {
@@ -164,6 +258,15 @@ TEST_CASE("ValidateEncounterQuery returns validation error for invalid to") {
     REQUIRE(error.details->at(0).path == "to");
 }
 
+TEST_CASE("ValidateEncounterQuery returns validation error for empty to") {
+    httplib::Request request{};
+    request.params["to"] = "";
+
+    const auto result = encounter_service::http::ValidateEncounterQuery(request);
+    REQUIRE(result.index() == 1);
+    REQUIRE(std::get<encounter_service::domain::DomainError>(result).details->at(0).path == "to");
+}
+
 TEST_CASE("ValidateAuditQuery parses from and to timestamps") {
     httplib::Request request{};
     request.params["from"] = "2026-02-24";
@@ -175,6 +278,15 @@ TEST_CASE("ValidateAuditQuery parses from and to timestamps") {
     const auto range = std::get<encounter_service::storage::AuditDateRange>(result);
     REQUIRE(range.from.has_value());
     REQUIRE(range.to.has_value());
+}
+
+TEST_CASE("ValidateAuditQuery accepts datetime Z values") {
+    httplib::Request request{};
+    request.params["from"] = "2026-02-25T01:02:03Z";
+
+    const auto result = encounter_service::http::ValidateAuditQuery(request);
+    REQUIRE(result.index() == 0);
+    REQUIRE(std::get<encounter_service::storage::AuditDateRange>(result).from.has_value());
 }
 
 TEST_CASE("ValidateAuditQuery returns validation error for invalid from") {
@@ -190,6 +302,15 @@ TEST_CASE("ValidateAuditQuery returns validation error for invalid from") {
     REQUIRE(error.details->at(0).path == "from");
 }
 
+TEST_CASE("ValidateAuditQuery returns validation error for empty from") {
+    httplib::Request request{};
+    request.params["from"] = "";
+
+    const auto result = encounter_service::http::ValidateAuditQuery(request);
+    REQUIRE(result.index() == 1);
+    REQUIRE(std::get<encounter_service::domain::DomainError>(result).details->at(0).path == "from");
+}
+
 TEST_CASE("ValidateAuditQuery returns validation error for invalid to") {
     httplib::Request request{};
     request.params["to"] = "invalid";
@@ -201,4 +322,13 @@ TEST_CASE("ValidateAuditQuery returns validation error for invalid to") {
     REQUIRE(error.code == encounter_service::domain::DomainErrorCode::Validation);
     REQUIRE(error.details.has_value());
     REQUIRE(error.details->at(0).path == "to");
+}
+
+TEST_CASE("ValidateAuditQuery returns validation error for empty to") {
+    httplib::Request request{};
+    request.params["to"] = "";
+
+    const auto result = encounter_service::http::ValidateAuditQuery(request);
+    REQUIRE(result.index() == 1);
+    REQUIRE(std::get<encounter_service::domain::DomainError>(result).details->at(0).path == "to");
 }
