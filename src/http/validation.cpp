@@ -29,6 +29,18 @@ std::optional<std::string> GetOptionalStringField(const nlohmann::json& body, co
     return value.get<std::string>();
 }
 
+std::variant<std::string, domain::DomainError>
+GetRequiredStringField(const nlohmann::json& body, const std::string& key) {
+    if (!body.contains(key)) {
+        return ValidationError(key, "is required");
+    }
+    const auto& value = body.at(key);
+    if (!value.is_string()) {
+        return ValidationError(key, "must be a string");
+    }
+    return value.get<std::string>();
+}
+
 std::variant<std::optional<std::chrono::system_clock::time_point>, domain::DomainError>
 ParseOptionalQueryTime(const httplib::Request& request, const std::string& paramName) {
     if (!request.has_param(paramName)) {
@@ -50,24 +62,41 @@ ValidateCreateEncounterRequest(const nlohmann::json& body) {
     if (!body.is_object()) {
         return ValidationError("body", "must be a JSON object");
     }
-
-    domain::CreateEncounterInput input{};
-    input.patientId = GetOptionalStringField(body, "patientId").value_or("");
-    input.providerId = GetOptionalStringField(body, "providerId").value_or("");
-    input.encounterType = GetOptionalStringField(body, "encounterType").value_or("");
-
-    const auto encounterDateRaw = GetOptionalStringField(body, "encounterDate");
-    if (!encounterDateRaw) {
-        return ValidationError("encounterDate", "is required and must be a string");
+    if (!body.contains("clinicalData")) {
+        return ValidationError("clinicalData", "is required");
     }
 
-    const auto parsedEncounterDate = util::ParseIso8601Utc(*encounterDateRaw);
+    domain::CreateEncounterInput input{};
+    auto patientId = GetRequiredStringField(body, "patientId");
+    if (std::holds_alternative<domain::DomainError>(patientId)) {
+        return std::get<domain::DomainError>(std::move(patientId));
+    }
+    input.patientId = std::get<std::string>(std::move(patientId));
+
+    auto providerId = GetRequiredStringField(body, "providerId");
+    if (std::holds_alternative<domain::DomainError>(providerId)) {
+        return std::get<domain::DomainError>(std::move(providerId));
+    }
+    input.providerId = std::get<std::string>(std::move(providerId));
+
+    auto encounterType = GetRequiredStringField(body, "encounterType");
+    if (std::holds_alternative<domain::DomainError>(encounterType)) {
+        return std::get<domain::DomainError>(std::move(encounterType));
+    }
+    input.encounterType = std::get<std::string>(std::move(encounterType));
+
+    auto encounterDateRaw = GetRequiredStringField(body, "encounterDate");
+    if (std::holds_alternative<domain::DomainError>(encounterDateRaw)) {
+        return std::get<domain::DomainError>(std::move(encounterDateRaw));
+    }
+
+    const auto parsedEncounterDate = util::ParseIso8601Utc(std::get<std::string>(encounterDateRaw));
     if (!parsedEncounterDate) {
         return ValidationError("encounterDate", "must be YYYY-MM-DD or YYYY-MM-DDTHH:MM:SSZ");
     }
 
     input.encounterDate = *parsedEncounterDate;
-    input.clinicalData = body;
+    input.clinicalData = body.at("clinicalData");
     return input;
 }
 

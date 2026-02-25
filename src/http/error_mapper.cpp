@@ -34,12 +34,27 @@ int StatusForCode(domain::DomainErrorCode code) {
 
 }  // namespace
 
-HttpErrorResponse MapDomainError(const domain::DomainError& error) {
+HttpErrorResponse MapDomainError(const domain::DomainError& error, std::optional<std::string> requestId) {
     nlohmann::json envelope = nlohmann::json::object();
-    nlohmann::json inner = nlohmann::json::object();
-    inner["code"] = CodeToString(error.code);
-    inner["message"] = error.message;
-    envelope["error"] = inner;
+    nlohmann::json errorJson = nlohmann::json::object();
+    errorJson["code"] = CodeToString(error.code);
+    errorJson["message"] = error.message;
+
+    if (error.details && !error.details->empty()) {
+        nlohmann::json details = nlohmann::json::array();
+        for (const auto& detail : *error.details) {
+            nlohmann::json item = nlohmann::json::object();
+            item["path"] = detail.path;
+            item["message"] = detail.message;
+            details.push_back(item);
+        }
+        errorJson["details"] = details;
+    }
+
+    envelope["error"] = errorJson;
+    if (requestId && !requestId->empty()) {
+        envelope["requestId"] = *requestId;
+    }
 
     return HttpErrorResponse{
         .status = StatusForCode(error.code),

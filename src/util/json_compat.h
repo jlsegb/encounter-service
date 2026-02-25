@@ -9,6 +9,7 @@
 #include <string>
 #include <type_traits>
 #include <utility>
+#include <vector>
 
 namespace nlohmann {
 
@@ -17,6 +18,7 @@ public:
     enum class Kind {
         Null,
         Object,
+        Array,
         String
     };
 
@@ -34,6 +36,12 @@ public:
         return j;
     }
 
+    static json array() {
+        json j;
+        j.kind_ = Kind::Array;
+        return j;
+    }
+
     json& operator[](const std::string& key) {
         if (kind_ != Kind::Object) {
             kind_ = Kind::Object;
@@ -47,6 +55,7 @@ public:
         kind_ = Kind::String;
         string_value_ = value ? value : "";
         object_value_.clear();
+        array_value_.clear();
         return *this;
     }
 
@@ -54,6 +63,7 @@ public:
         kind_ = Kind::String;
         string_value_ = value;
         object_value_.clear();
+        array_value_.clear();
         return *this;
     }
 
@@ -63,6 +73,10 @@ public:
 
     [[nodiscard]] bool is_string() const {
         return kind_ == Kind::String;
+    }
+
+    [[nodiscard]] bool is_array() const {
+        return kind_ == Kind::Array;
     }
 
     [[nodiscard]] bool contains(const std::string& key) const {
@@ -88,6 +102,16 @@ public:
         }
     }
 
+    void push_back(const json& value) {
+        if (kind_ != Kind::Array) {
+            kind_ = Kind::Array;
+            object_value_.clear();
+            string_value_.clear();
+            array_value_.clear();
+        }
+        array_value_.push_back(value);
+    }
+
     [[nodiscard]] std::string dump() const {
         switch (kind_) {
             case Kind::Null:
@@ -96,6 +120,8 @@ public:
                 return "\"" + Escape(string_value_) + "\"";
             case Kind::Object:
                 return DumpObject();
+            case Kind::Array:
+                return DumpArray();
         }
         return "null";
     }
@@ -130,9 +156,24 @@ private:
         return out;
     }
 
+    [[nodiscard]] std::string DumpArray() const {
+        std::string out = "[";
+        bool first = true;
+        for (const auto& value : array_value_) {
+            if (!first) {
+                out += ",";
+            }
+            first = false;
+            out += value.dump();
+        }
+        out += "]";
+        return out;
+    }
+
     Kind kind_{Kind::Null};
     std::string string_value_;
     std::map<std::string, json> object_value_;
+    std::vector<json> array_value_;
 };
 
 }  // namespace nlohmann

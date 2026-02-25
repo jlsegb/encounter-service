@@ -1,5 +1,6 @@
 #pragma once
 
+#include <optional>
 #include <string>
 
 #include "src/domain/errors.h"
@@ -12,6 +13,7 @@ struct HttpErrorResponse {
     nlohmann::json body;
 };
 
-HttpErrorResponse MapDomainError(const domain::DomainError& error);
+HttpErrorResponse MapDomainError(const domain::DomainError& error,
+                                std::optional<std::string> requestId = std::nullopt);
 
 }  // namespace encounter_service::http
