@@ -99,52 +99,120 @@ struct RawHttpResponse {
 };
 
 RawHttpResponse SendHttpRequest(int port, const std::string& raw) {
-    RawHttpResponse out{};
+#if __has_include("vendor/httplib.h")
+    std::istringstream stream(raw);
+    std::string request_line;
+    REQUIRE(static_cast<bool>(std::getline(stream, request_line)));
+    if (!request_line.empty() && request_line.back() == '\r') {
+        request_line.pop_back();
+    }
 
+    std::istringstream request_line_stream(request_line);
+    std::string method;
+    std::string path;
+    std::string version;
+    request_line_stream >> method >> path >> version;
+    REQUIRE(!method.empty());
+    REQUIRE(!path.empty());
+
+    httplib::Headers headers;
+    std::string line;
+    while (std::getline(stream, line)) {
+        if (!line.empty() && line.back() == '\r') {
+            line.pop_back();
+        }
+        if (line.empty()) {
+            break;
+        }
+        const auto colon = line.find(':');
+        REQUIRE(colon != std::string::npos);
+        const auto key = line.substr(0, colon);
+        auto value = line.substr(colon + 1);
+        while (!value.empty() && value.front() == ' ') {
+            value.erase(value.begin());
+        }
+        headers.emplace(key, value);
+    }
+
+    std::string body;
+    std::getline(stream, body, '\0');
+
+    httplib::Client client("127.0.0.1", port);
+    client.set_keep_alive(false);
+
+    decltype(client.Get(path.c_str(), headers)) res;
+    if (method == "GET") {
+        res = client.Get(path.c_str(), headers);
+    } else if (method == "POST") {
+        auto content_type = std::string("application/json");
+        if (const auto it = headers.find("Content-Type"); it != headers.end()) {
+            content_type = it->second;
+        }
+        res = client.Post(path.c_str(), headers, body, content_type.c_str());
+    } else {
+        REQUIRE(false);
+    }
+
+    REQUIRE(static_cast<bool>(res));
+    return RawHttpResponse{
+        .status = res->status,
+        .body = res->body
+    };
+#else
     sockaddr_in addr{};
     addr.sin_family = AF_INET;
     addr.sin_port = htons(static_cast<uint16_t>(port));
     ::inet_pton(AF_INET, "127.0.0.1", &addr.sin_addr);
+    for (int attempt = 0; attempt < 20; ++attempt) {
+        bool connected = false;
+        int sock = -1;
+        for (int connect_attempt = 0; connect_attempt < 50; ++connect_attempt) {
+            sock = ::socket(AF_INET, SOCK_STREAM, 0);
+            REQUIRE(sock >= 0);
+            if (::connect(sock, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) == 0) {
+                connected = true;
+                break;
+            }
+            ::close(sock);
+            sock = -1;
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+        REQUIRE(connected);
+        REQUIRE(::send(sock, raw.data(), raw.size(), 0) >= 0);
+        ::shutdown(sock, SHUT_WR);
 
-    bool connected = false;
-    int sock = -1;
-    for (int attempt = 0; attempt < 50; ++attempt) {
-        sock = ::socket(AF_INET, SOCK_STREAM, 0);
-        REQUIRE(sock >= 0);
-        if (::connect(sock, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) == 0) {
-            connected = true;
-            break;
+        std::string response;
+        char buffer[4096];
+        for (;;) {
+            const auto n = ::recv(sock, buffer, sizeof(buffer), 0);
+            if (n <= 0) {
+                break;
+            }
+            response.append(buffer, static_cast<std::size_t>(n));
         }
         ::close(sock);
-        sock = -1;
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
-    }
-    REQUIRE(connected);
-    REQUIRE(::send(sock, raw.data(), raw.size(), 0) >= 0);
-    ::shutdown(sock, SHUT_WR);
 
-    std::string response;
-    char buffer[4096];
-    for (;;) {
-        const auto n = ::recv(sock, buffer, sizeof(buffer), 0);
-        if (n <= 0) {
-            break;
+        const auto status_pos = response.find(' ');
+        const auto status_end = (status_pos == std::string::npos)
+            ? std::string::npos
+            : response.find(' ', status_pos + 1);
+        if (status_pos == std::string::npos || status_end == std::string::npos) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            continue;
         }
-        response.append(buffer, static_cast<std::size_t>(n));
-    }
-    ::close(sock);
 
-    const auto status_pos = response.find(' ');
-    REQUIRE(status_pos != std::string::npos);
-    const auto status_end = response.find(' ', status_pos + 1);
-    REQUIRE(status_end != std::string::npos);
-    out.status = std::stoi(response.substr(status_pos + 1, status_end - status_pos - 1));
-
-    const auto body_pos = response.find("\r\n\r\n");
-    if (body_pos != std::string::npos) {
-        out.body = response.substr(body_pos + 4);
+        RawHttpResponse out{};
+        out.status = std::stoi(response.substr(status_pos + 1, status_end - status_pos - 1));
+        const auto body_pos = response.find("\r\n\r\n");
+        if (body_pos != std::string::npos) {
+            out.body = response.substr(body_pos + 4);
+        }
+        return out;
     }
-    return out;
+
+    REQUIRE(false);
+    return {};
+#endif
 }
 
 class TestServer {
