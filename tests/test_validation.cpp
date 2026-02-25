@@ -5,6 +5,14 @@
 #include "src/http/validation.h"
 #include "src/util/time.h"
 
+namespace {
+
+void SetParam(httplib::Request& request, const std::string& key, const std::string& value) {
+    request.params.emplace(key, value);
+}
+
+}  // namespace
+
 TEST_CASE("ValidateCreateEncounterRequest parses valid payload") {
     nlohmann::json body = nlohmann::json::object();
     body["patientId"] = "patient-1";
@@ -194,10 +202,10 @@ TEST_CASE("ValidateCreateEncounterRequest validates clinicalData type") {
 
 TEST_CASE("ValidateEncounterQuery parses from and to timestamps") {
     httplib::Request request{};
-    request.params["patientId"] = "patient-1";
-    request.params["providerId"] = "provider-1";
-    request.params["from"] = "2026-02-24";
-    request.params["to"] = "2026-02-25T01:02:03Z";
+    SetParam(request, "patientId", "patient-1");
+    SetParam(request, "providerId", "provider-1");
+    SetParam(request, "from", "2026-02-24");
+    SetParam(request, "to", "2026-02-25T01:02:03Z");
 
     const auto result = encounter_service::http::ValidateEncounterQuery(request);
     REQUIRE(result.index() == 0);
@@ -213,7 +221,7 @@ TEST_CASE("ValidateEncounterQuery parses from and to timestamps") {
 
 TEST_CASE("ValidateEncounterQuery parses encounterType passthrough") {
     httplib::Request request{};
-    request.params["encounterType"] = "follow-up";
+    SetParam(request, "encounterType", "follow-up");
 
     const auto result = encounter_service::http::ValidateEncounterQuery(request);
     REQUIRE(result.index() == 0);
@@ -225,7 +233,7 @@ TEST_CASE("ValidateEncounterQuery parses encounterType passthrough") {
 
 TEST_CASE("ValidateEncounterQuery returns validation error for invalid from") {
     httplib::Request request{};
-    request.params["from"] = "bad-date";
+    SetParam(request, "from", "bad-date");
 
     const auto result = encounter_service::http::ValidateEncounterQuery(request);
     REQUIRE(result.index() == 1);
@@ -238,7 +246,7 @@ TEST_CASE("ValidateEncounterQuery returns validation error for invalid from") {
 
 TEST_CASE("ValidateEncounterQuery returns validation error for empty from") {
     httplib::Request request{};
-    request.params["from"] = "";
+    SetParam(request, "from", "");
 
     const auto result = encounter_service::http::ValidateEncounterQuery(request);
     REQUIRE(result.index() == 1);
@@ -247,7 +255,7 @@ TEST_CASE("ValidateEncounterQuery returns validation error for empty from") {
 
 TEST_CASE("ValidateEncounterQuery returns validation error for invalid to") {
     httplib::Request request{};
-    request.params["to"] = "bad-date";
+    SetParam(request, "to", "bad-date");
 
     const auto result = encounter_service::http::ValidateEncounterQuery(request);
     REQUIRE(result.index() == 1);
@@ -260,7 +268,7 @@ TEST_CASE("ValidateEncounterQuery returns validation error for invalid to") {
 
 TEST_CASE("ValidateEncounterQuery returns validation error for empty to") {
     httplib::Request request{};
-    request.params["to"] = "";
+    SetParam(request, "to", "");
 
     const auto result = encounter_service::http::ValidateEncounterQuery(request);
     REQUIRE(result.index() == 1);
@@ -269,8 +277,8 @@ TEST_CASE("ValidateEncounterQuery returns validation error for empty to") {
 
 TEST_CASE("ValidateAuditQuery parses from and to timestamps") {
     httplib::Request request{};
-    request.params["from"] = "2026-02-24";
-    request.params["to"] = "2026-02-25";
+    SetParam(request, "from", "2026-02-24");
+    SetParam(request, "to", "2026-02-25");
 
     const auto result = encounter_service::http::ValidateAuditQuery(request);
     REQUIRE(result.index() == 0);
@@ -282,7 +290,7 @@ TEST_CASE("ValidateAuditQuery parses from and to timestamps") {
 
 TEST_CASE("ValidateAuditQuery accepts datetime Z values") {
     httplib::Request request{};
-    request.params["from"] = "2026-02-25T01:02:03Z";
+    SetParam(request, "from", "2026-02-25T01:02:03Z");
 
     const auto result = encounter_service::http::ValidateAuditQuery(request);
     REQUIRE(result.index() == 0);
@@ -291,7 +299,7 @@ TEST_CASE("ValidateAuditQuery accepts datetime Z values") {
 
 TEST_CASE("ValidateAuditQuery returns validation error for invalid from") {
     httplib::Request request{};
-    request.params["from"] = "invalid";
+    SetParam(request, "from", "invalid");
 
     const auto result = encounter_service::http::ValidateAuditQuery(request);
     REQUIRE(result.index() == 1);
@@ -304,7 +312,7 @@ TEST_CASE("ValidateAuditQuery returns validation error for invalid from") {
 
 TEST_CASE("ValidateAuditQuery returns validation error for empty from") {
     httplib::Request request{};
-    request.params["from"] = "";
+    SetParam(request, "from", "");
 
     const auto result = encounter_service::http::ValidateAuditQuery(request);
     REQUIRE(result.index() == 1);
@@ -313,7 +321,7 @@ TEST_CASE("ValidateAuditQuery returns validation error for empty from") {
 
 TEST_CASE("ValidateAuditQuery returns validation error for invalid to") {
     httplib::Request request{};
-    request.params["to"] = "invalid";
+    SetParam(request, "to", "invalid");
 
     const auto result = encounter_service::http::ValidateAuditQuery(request);
     REQUIRE(result.index() == 1);
@@ -326,7 +334,7 @@ TEST_CASE("ValidateAuditQuery returns validation error for invalid to") {
 
 TEST_CASE("ValidateAuditQuery returns validation error for empty to") {
     httplib::Request request{};
-    request.params["to"] = "";
+    SetParam(request, "to", "");
 
     const auto result = encounter_service::http::ValidateAuditQuery(request);
     REQUIRE(result.index() == 1);

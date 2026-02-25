@@ -2,6 +2,14 @@
 
 #include "src/http/auth.h"
 
+namespace {
+
+void SetHeader(httplib::Request& req, const std::string& key, const std::string& value) {
+    req.headers.emplace(key, value);
+}
+
+}  // namespace
+
 TEST_CASE("Authenticate returns unauthorized when API key is missing") {
     httplib::Request req{};
 
@@ -15,7 +23,7 @@ TEST_CASE("Authenticate returns unauthorized when API key is missing") {
 
 TEST_CASE("Authenticate returns unauthorized when API key is empty") {
     httplib::Request req{};
-    req.headers["x-api-key"] = "";
+    SetHeader(req, "x-api-key", "");
 
     const auto result = encounter_service::http::Authenticate(req);
     REQUIRE(result.index() == 1);
@@ -27,7 +35,7 @@ TEST_CASE("Authenticate returns unauthorized when API key is empty") {
 
 TEST_CASE("Authenticate returns actor when API key is present") {
     httplib::Request req{};
-    req.headers["x-api-key"] = "test-key";
+    SetHeader(req, "x-api-key", "test-key");
 
     const auto result = encounter_service::http::Authenticate(req);
     REQUIRE(result.index() == 0);
@@ -36,7 +44,7 @@ TEST_CASE("Authenticate returns actor when API key is present") {
 
 TEST_CASE("Request header lookup is case-insensitive in httplib compat") {
     httplib::Request req{};
-    req.headers["x-api-key"] = "test-key";
+    SetHeader(req, "x-api-key", "test-key");
 
     REQUIRE(req.has_header("X-API-Key"));
     REQUIRE(req.has_header("x-api-key"));
