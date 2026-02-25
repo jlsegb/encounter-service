@@ -41,6 +41,9 @@ if (ENCOUNTER_SERVICE_BUILD_TESTS)
         tests/test_auth.cpp
         tests/test_error_mapper.cpp
         tests/test_routes.cpp
+        tests/test_time.cpp
+        tests/test_storage_encounter_repo.cpp
+        tests/test_storage_audit_repo.cpp
         src/domain/encounter_service.cpp
         src/http/auth.cpp
         src/http/error_mapper.cpp
