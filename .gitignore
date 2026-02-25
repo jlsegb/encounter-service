@@ -1,0 +1,33 @@
+# ---- OS / Editor ----
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# ---- CMake / Build ----
+build/
+build-*/
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+compile_commands.json
+
+# ---- Binaries / Objects ----
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.dylib
+*.dll
+*.exe
+*.out
+
+# ---- Test artifacts ----
+Testing/
+CTestTestfile.cmake
+
+# ---- Logs ----
+*.log
