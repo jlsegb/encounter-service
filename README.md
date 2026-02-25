@@ -46,6 +46,18 @@ Vendored single-header dependencies (already in this repo):
 - `vendor/httplib.h` (`cpp-httplib`)
 - `vendor/json.hpp` (`nlohmann/json`)
 
+## Run Locally
+
+Build and run:
+
+```bash
+./scripts/check.sh
+./build/encounter_service
+```
+
+Server default:
+- `http://localhost:8080`
+
 ## Testing
 
 Quick commands:
@@ -53,6 +65,33 @@ Quick commands:
 - `./scripts/smoke.sh` (manual API smoke flow against a running server)
 
 See `TESTING.md` for test structure, coverage areas, and notes about route integration tests binding localhost ports.
+
+## Response Conventions
+
+### Success responses
+- JSON object for single-resource endpoints (`POST /encounters`, `GET /encounters/<id>`)
+- JSON array for collection endpoints (`GET /encounters`, `GET /audit/encounters`)
+
+### Error responses
+
+All non-health endpoint errors use a consistent envelope:
+
+```json
+{
+  "error": {
+    "code": "validation_error",
+    "message": "Request validation failed",
+    "details": [
+      { "path": "encounterDate", "message": "must be YYYY-MM-DD or YYYY-MM-DDTHH:MM:SSZ" }
+    ]
+  },
+  "requestId": "req-optional"
+}
+```
+
+Notes:
+- `error.details` is omitted when not applicable
+- `requestId` is only included when supplied by the client (`X-Request-Id`)
 
 ## API Notes
 
@@ -81,6 +120,18 @@ Supported query params:
 - `to` (ISO-8601 UTC date/datetime, inclusive upper bound for `AuditEntry.timestamp`)
 
 Audit timestamps represent **access time** (`CREATE_ENCOUNTER` / `READ_ENCOUNTER` events), not clinical encounter date.
+
+## Spec Interpretation Note
+
+The take-home wording appears to combine two concerns under `GET /encounters/:encounterId`:
+- retrieving a single encounter by ID
+- "filtering capabilities" (date range, provider, patient)
+
+I treated this as a spec ambiguity and implemented:
+- `GET /encounters/<encounterId>` for single-resource retrieval
+- `GET /encounters` for filtered collection queries
+
+This keeps the API behavior consistent with common REST conventions.
 
 ## Architecture Summary
 
@@ -118,7 +169,7 @@ Sensitive fields include:
 Current safeguards:
 - Domain error messages are safe (no PHI)
 - HTTP logs avoid request bodies and PHI fields
-- Redactor interface exists for structured log scrubbing
+- Recursive redaction layer scrubs common PHI-like keys in structured logs (e.g., `patientId`, `name`, `dob`)
 - Audit entries record actor/action/encounter ID without clinical payloads
 
 ## Current Limitations
@@ -127,5 +178,18 @@ Current safeguards:
 - Not thread-safe
 - Demo auth (no real API key management / identity provider)
 - No pagination metadata in list responses
-- Redaction implementation is currently a stub passthrough
+- Redaction is key-based and not exhaustive (production should use a broader PHI policy and field inventory)
 - No production hardening (TLS, rate limiting, metrics, structured tracing, etc.)
+
+## Production Considerations
+
+If extended beyond this exercise:
+
+- Replace in-memory repositories with a transactional datastore (e.g., Postgres) and durable migrations.
+- Make audit logging append-only and immutable at the storage layer (with retention/backup strategy).
+- Add authorization controls (not just authentication) to restrict access by user/role/patient context.
+- Replace demo API key auth with OAuth2/JWT or mTLS, plus secret management and key rotation.
+- Harden PHI protection with schema-aware redaction and a reviewed PHI field policy.
+- Introduce request-level structured logging with correlation/request IDs and centralized log ingestion.
+- Add pagination metadata, max query limits, and rate limiting.
+- Introduce metrics and observability (latency, error rates, audit append failures, tracing).
