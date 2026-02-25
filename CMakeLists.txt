@@ -38,8 +38,10 @@ if (ENCOUNTER_SERVICE_BUILD_TESTS)
         tests/test_redaction.cpp
         tests/test_validation.cpp
         tests/test_audit.cpp
+        src/domain/encounter_service.cpp
         src/http/validation.cpp
         src/storage/in_memory_audit_repo.cpp
+        src/storage/in_memory_encounter_repo.cpp
         src/util/redaction.cpp
         src/util/time.cpp
     )
