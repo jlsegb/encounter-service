@@ -17,6 +17,7 @@ add_library(encounter_service_lib
     src/storage/in_memory_audit_repo.cpp
     src/util/logger.cpp
     src/util/redaction.cpp
+    src/util/time.cpp
 )
 
 target_include_directories(encounter_service_lib
@@ -40,6 +41,7 @@ if (ENCOUNTER_SERVICE_BUILD_TESTS)
         src/http/validation.cpp
         src/storage/in_memory_audit_repo.cpp
         src/util/redaction.cpp
+        src/util/time.cpp
     )
 
     target_include_directories(encounter_service_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})

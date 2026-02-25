@@ -1,6 +1,5 @@
 #pragma once
 
-#include <mutex>
 #include <unordered_map>
 
 #include "src/storage/encounter_repo.h"
@@ -14,7 +13,7 @@ public:
     std::vector<domain::Encounter> Query(const EncounterQueryFilters& filters) const override;
 
 private:
-    mutable std::mutex mutex_;
+    // Not thread-safe. Production should use synchronization or a database-backed repository.
     std::unordered_map<std::string, domain::Encounter> encounters_;
 };
 

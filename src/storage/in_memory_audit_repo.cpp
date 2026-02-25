@@ -1,16 +1,14 @@
 #include "src/storage/in_memory_audit_repo.h"
 
-#include <mutex>
+#include <algorithm>
 
 namespace encounter_service::storage {
 
 void InMemoryAuditRepository::Append(const domain::AuditEntry& entry) {
-    std::lock_guard<std::mutex> lock(mutex_);
     entries_.push_back(entry);
 }
 
 std::vector<domain::AuditEntry> InMemoryAuditRepository::Query(const AuditDateRange& range) const {
-    std::lock_guard<std::mutex> lock(mutex_);
     std::vector<domain::AuditEntry> out;
     out.reserve(entries_.size());
 
@@ -23,6 +21,16 @@ std::vector<domain::AuditEntry> InMemoryAuditRepository::Query(const AuditDateRa
         }
         out.push_back(entry);
     }
+
+    std::sort(out.begin(), out.end(), [](const domain::AuditEntry& a, const domain::AuditEntry& b) {
+        if (a.timestamp != b.timestamp) {
+            return a.timestamp < b.timestamp;
+        }
+        if (a.encounterId != b.encounterId) {
+            return a.encounterId < b.encounterId;
+        }
+        return a.actor < b.actor;
+    });
 
     return out;
 }

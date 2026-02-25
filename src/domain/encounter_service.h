@@ -19,7 +19,7 @@ using ServiceResult = std::variant<T, DomainError>;
 struct CreateEncounterInput {
     std::string patientId;
     std::string providerId;
-    std::string encounterDate;
+    std::chrono::system_clock::time_point encounterDate{};
     std::string encounterType;
     nlohmann::json clinicalData;
 };

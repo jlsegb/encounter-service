@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chrono>
 #include <string>
 
 namespace encounter_service::domain {
@@ -10,7 +11,7 @@ enum class AuditAction {
 };
 
 struct AuditEntry {
-    std::string timestamp;
+    std::chrono::system_clock::time_point timestamp{};
     std::string actor;
     AuditAction action{AuditAction::READ_ENCOUNTER};
     std::string encounterId;

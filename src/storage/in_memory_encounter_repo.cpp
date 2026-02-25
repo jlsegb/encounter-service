@@ -28,13 +28,11 @@ bool Matches(const domain::Encounter& encounter, const EncounterQueryFilters& fi
 }  // namespace
 
 domain::Encounter InMemoryEncounterRepository::Create(const domain::Encounter& encounter) {
-    std::lock_guard<std::mutex> lock(mutex_);
     encounters_[encounter.encounterId] = encounter;
     return encounter;
 }
 
 std::optional<domain::Encounter> InMemoryEncounterRepository::GetById(const std::string& encounterId) const {
-    std::lock_guard<std::mutex> lock(mutex_);
     const auto it = encounters_.find(encounterId);
     if (it == encounters_.end()) {
         return std::nullopt;
@@ -43,7 +41,6 @@ std::optional<domain::Encounter> InMemoryEncounterRepository::GetById(const std:
 }
 
 std::vector<domain::Encounter> InMemoryEncounterRepository::Query(const EncounterQueryFilters& filters) const {
-    std::lock_guard<std::mutex> lock(mutex_);
     std::vector<domain::Encounter> matches;
     matches.reserve(encounters_.size());
     for (const auto& [unused_id, encounter] : encounters_) {
@@ -54,7 +51,10 @@ std::vector<domain::Encounter> InMemoryEncounterRepository::Query(const Encounte
     }
 
     std::sort(matches.begin(), matches.end(), [](const domain::Encounter& a, const domain::Encounter& b) {
-        return a.encounterDate < b.encounterDate;
+        if (a.encounterDate != b.encounterDate) {
+            return a.encounterDate < b.encounterDate;
+        }
+        return a.encounterId < b.encounterId;
     });
 
     const auto begin_index = std::min(filters.offset, matches.size());

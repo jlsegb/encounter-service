@@ -1,25 +1,8 @@
 #include "src/domain/encounter_service.h"
 
-#include <ctime>
-#include <iomanip>
-#include <sstream>
-
 namespace encounter_service::domain {
 
 namespace {
-
-std::string ToIso8601(util::Clock::TimePoint timePoint) {
-    const auto timeT = std::chrono::system_clock::to_time_t(timePoint);
-    std::tm tm{};
-#if defined(_WIN32)
-    gmtime_s(&tm, &timeT);
-#else
-    gmtime_r(&timeT, &tm);
-#endif
-    std::ostringstream oss;
-    oss << std::put_time(&tm, "%Y-%m-%dT%H:%M:%SZ");
-    return oss.str();
-}
 
 DomainError MakeError(DomainErrorCode code, std::string message) {
     return DomainError{
@@ -46,7 +29,6 @@ ServiceResult<Encounter> DefaultEncounterService::CreateEncounter(const CreateEn
     }
 
     const auto now = clock_.Now();
-    const auto nowIso = ToIso8601(now);
 
     const Encounter encounter{
         .encounterId = idGenerator_.NextId(),
@@ -56,8 +38,8 @@ ServiceResult<Encounter> DefaultEncounterService::CreateEncounter(const CreateEn
         .encounterType = input.encounterType,
         .clinicalData = input.clinicalData,
         .metadata = EncounterMetadata{
-            .createdAt = nowIso,
-            .updatedAt = nowIso,
+            .createdAt = now,
+            .updatedAt = now,
             .createdBy = actor
         }
     };
@@ -65,7 +47,7 @@ ServiceResult<Encounter> DefaultEncounterService::CreateEncounter(const CreateEn
     auto persisted = encounterRepository_.Create(encounter);
 
     auditRepository_.Append(AuditEntry{
-        .timestamp = nowIso,
+        .timestamp = now,
         .actor = actor,
         .action = AuditAction::CREATE_ENCOUNTER,
         .encounterId = persisted.encounterId
@@ -85,7 +67,7 @@ ServiceResult<Encounter> DefaultEncounterService::GetEncounter(const std::string
     }
 
     auditRepository_.Append(AuditEntry{
-        .timestamp = ToIso8601(clock_.Now()),
+        .timestamp = clock_.Now(),
         .actor = actor,
         .action = AuditAction::READ_ENCOUNTER,
         .encounterId = found->encounterId

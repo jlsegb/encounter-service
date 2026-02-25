@@ -6,6 +6,7 @@
 #include "src/http/error_mapper.h"
 #include "src/http/validation.h"
 #include "src/util/json_compat.h"
+#include "src/util/time.h"
 
 namespace encounter_service::http {
 
@@ -23,6 +24,22 @@ nlohmann::json NotImplementedBody(const std::string& endpoint) {
     return json;
 }
 
+nlohmann::json EncounterToJson(const domain::Encounter& encounter) {
+    nlohmann::json json = nlohmann::json::object();
+    json["encounterId"] = encounter.encounterId;
+    json["patientId"] = encounter.patientId;
+    json["providerId"] = encounter.providerId;
+    json["encounterDate"] = util::FormatIso8601Utc(encounter.encounterDate);
+    json["encounterType"] = encounter.encounterType;
+
+    nlohmann::json metadata = nlohmann::json::object();
+    metadata["createdAt"] = util::FormatIso8601Utc(encounter.metadata.createdAt);
+    metadata["updatedAt"] = util::FormatIso8601Utc(encounter.metadata.updatedAt);
+    metadata["createdBy"] = encounter.metadata.createdBy;
+    json["metadata"] = metadata;
+    return json;
+}
+
 }  // namespace
 
 void RegisterRoutes(httplib::Server& server,
@@ -31,6 +48,7 @@ void RegisterRoutes(httplib::Server& server,
                     util::Redactor& redactor) {
     (void)encounterService;
     (void)redactor;
+    (void)EncounterToJson;
 
     server.Get("/health", [&logger](const httplib::Request&, httplib::Response& res) {
         logger.Log(util::LogLevel::Info, "GET /health");

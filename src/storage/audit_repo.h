@@ -1,7 +1,7 @@
 #pragma once
 
+#include <chrono>
 #include <optional>
-#include <string>
 #include <vector>
 
 #include "src/domain/audit_models.h"
@@ -9,8 +9,8 @@
 namespace encounter_service::storage {
 
 struct AuditDateRange {
-    std::optional<std::string> from;
-    std::optional<std::string> to;
+    std::optional<std::chrono::system_clock::time_point> from;
+    std::optional<std::chrono::system_clock::time_point> to;
 };
 
 class AuditRepository {

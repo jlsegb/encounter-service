@@ -5,7 +5,9 @@
 #else
 
 #include <map>
+#include <stdexcept>
 #include <string>
+#include <type_traits>
 #include <utility>
 
 namespace nlohmann {
@@ -57,6 +59,33 @@ public:
 
     [[nodiscard]] bool is_object() const {
         return kind_ == Kind::Object;
+    }
+
+    [[nodiscard]] bool is_string() const {
+        return kind_ == Kind::String;
+    }
+
+    [[nodiscard]] bool contains(const std::string& key) const {
+        return kind_ == Kind::Object && object_value_.find(key) != object_value_.end();
+    }
+
+    [[nodiscard]] const json& at(const std::string& key) const {
+        if (kind_ != Kind::Object) {
+            throw std::out_of_range("json is not an object");
+        }
+        return object_value_.at(key);
+    }
+
+    template <typename T>
+    [[nodiscard]] T get() const {
+        if constexpr (std::is_same_v<T, std::string>) {
+            if (kind_ != Kind::String) {
+                throw std::runtime_error("json value is not a string");
+            }
+            return string_value_;
+        } else {
+            static_assert(std::is_same_v<T, std::string>, "json_compat only supports get<std::string>()");
+        }
     }
 
     [[nodiscard]] std::string dump() const {

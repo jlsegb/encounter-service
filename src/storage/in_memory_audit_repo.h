@@ -1,6 +1,5 @@
 #pragma once
 
-#include <mutex>
 #include <vector>
 
 #include "src/storage/audit_repo.h"
@@ -13,7 +12,7 @@ public:
     std::vector<domain::AuditEntry> Query(const AuditDateRange& range) const override;
 
 private:
-    mutable std::mutex mutex_;
+    // Not thread-safe. Production should use synchronization or a database-backed repository.
     std::vector<domain::AuditEntry> entries_;
 };
 

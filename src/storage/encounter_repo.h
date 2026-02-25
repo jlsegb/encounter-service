@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chrono>
 #include <cstddef>
 #include <optional>
 #include <string>
@@ -12,8 +13,8 @@ namespace encounter_service::storage {
 struct EncounterQueryFilters {
     std::optional<std::string> patientId;
     std::optional<std::string> providerId;
-    std::optional<std::string> encounterDateFrom;
-    std::optional<std::string> encounterDateTo;
+    std::optional<std::chrono::system_clock::time_point> encounterDateFrom;
+    std::optional<std::chrono::system_clock::time_point> encounterDateTo;
     std::optional<std::string> encounterType;
     std::size_t limit{100};
     std::size_t offset{0};
