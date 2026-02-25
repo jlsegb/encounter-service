@@ -4,13 +4,13 @@
 #include "vendor/httplib.h"
 #else
 
+#include <atomic>
 #include <functional>
 #include <cstring>
+#include <regex>
 #include <map>
 #include <sstream>
-#include <map>
 #include <string>
-#include <unordered_map>
 #include <vector>
 
 #if !defined(_WIN32)
@@ -23,10 +23,19 @@
 namespace httplib {
 
 struct Request {
+    struct Match {
+        std::string value;
+
+        [[nodiscard]] std::string str() const {
+            return value;
+        }
+    };
+
     std::map<std::string, std::string> headers;
     std::string body;
     std::string path;
     std::map<std::string, std::string> params;
+    std::vector<Match> matches;
 
     [[nodiscard]] bool has_header(const std::string& key) const {
         return headers.find(key) != headers.end();
@@ -63,11 +72,21 @@ public:
     using Handler = std::function<void(const Request&, Response&)>;
 
     void Get(const std::string& pattern, Handler handler) {
-        get_handlers_[pattern] = std::move(handler);
+        get_routes_.push_back(Route{
+            .pattern = pattern,
+            .handler = std::move(handler),
+            .is_regex = LooksLikeRegex(pattern),
+            .regex = std::regex(pattern)
+        });
     }
 
     void Post(const std::string& pattern, Handler handler) {
-        post_handlers_[pattern] = std::move(handler);
+        post_routes_.push_back(Route{
+            .pattern = pattern,
+            .handler = std::move(handler),
+            .is_regex = LooksLikeRegex(pattern),
+            .regex = std::regex(pattern)
+        });
     }
 
     bool listen(const char* host, int port) {
@@ -77,11 +96,14 @@ public:
         return false;
 #else
         (void)host;
+        listen_port_ = port;
 
         const int server_fd = ::socket(AF_INET, SOCK_STREAM, 0);
         if (server_fd < 0) {
             return false;
         }
+        server_fd_ = server_fd;
+        running_.store(true);
 
         int opt = 1;
         ::setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
@@ -92,22 +114,50 @@ public:
         addr.sin_addr.s_addr = htonl(INADDR_ANY);
 
         if (::bind(server_fd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) < 0) {
+            running_.store(false);
+            server_fd_ = -1;
             ::close(server_fd);
             return false;
         }
 
         if (::listen(server_fd, 16) < 0) {
+            running_.store(false);
+            server_fd_ = -1;
             ::close(server_fd);
             return false;
         }
 
-        for (;;) {
+        for (; running_.load();) {
             const int client_fd = ::accept(server_fd, nullptr, nullptr);
             if (client_fd < 0) {
+                if (!running_.load()) {
+                    break;
+                }
                 continue;
             }
             HandleClient(client_fd);
             ::close(client_fd);
+        }
+        running_.store(false);
+        server_fd_ = -1;
+        ::close(server_fd);
+        return true;
+#endif
+    }
+
+    void stop() {
+#if !defined(_WIN32)
+        running_.store(false);
+        if (listen_port_ > 0) {
+            const int wake_fd = ::socket(AF_INET, SOCK_STREAM, 0);
+            if (wake_fd >= 0) {
+                sockaddr_in addr{};
+                addr.sin_family = AF_INET;
+                addr.sin_port = htons(static_cast<uint16_t>(listen_port_));
+                addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+                (void)::connect(wake_fd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr));
+                ::close(wake_fd);
+            }
         }
 #endif
     }
@@ -137,6 +187,62 @@ private:
             default:
                 return "OK";
         }
+    }
+
+    static bool LooksLikeRegex(const std::string& pattern) {
+        return pattern.find('(') != std::string::npos ||
+               pattern.find('[') != std::string::npos ||
+               pattern.find('\\') != std::string::npos;
+    }
+
+    static void ParseQueryString(const std::string& query, Request& req) {
+        std::size_t start = 0;
+        while (start <= query.size()) {
+            const auto end = query.find('&', start);
+            const auto token = query.substr(start, end == std::string::npos ? std::string::npos : end - start);
+            if (!token.empty()) {
+                const auto eq = token.find('=');
+                if (eq == std::string::npos) {
+                    req.params[token] = "";
+                } else {
+                    req.params[token.substr(0, eq)] = token.substr(eq + 1);
+                }
+            }
+            if (end == std::string::npos) {
+                break;
+            }
+            start = end + 1;
+        }
+    }
+
+    struct Route {
+        std::string pattern;
+        Handler handler;
+        bool is_regex{false};
+        std::regex regex;
+    };
+
+    bool Dispatch(const std::vector<Route>& routes, Request& req, Response& res) {
+        for (const auto& route : routes) {
+            if (!route.is_regex) {
+                if (route.pattern == req.path) {
+                    route.handler(req, res);
+                    return true;
+                }
+                continue;
+            }
+
+            std::smatch match;
+            if (std::regex_match(req.path, match, route.regex)) {
+                req.matches.clear();
+                for (std::size_t i = 0; i < match.size(); ++i) {
+                    req.matches.push_back(Request::Match{.value = match[i].str()});
+                }
+                route.handler(req, res);
+                return true;
+            }
+        }
+        return false;
     }
 
     void HandleClient(int client_fd) {
@@ -177,6 +283,7 @@ private:
         Request req{};
         req.path = target;
         if (const auto q = req.path.find('?'); q != std::string::npos) {
+            ParseQueryString(req.path.substr(q + 1), req);
             req.path = req.path.substr(0, q);
         }
 
@@ -201,18 +308,35 @@ private:
         res.status = 404;
         res.set_content("{\"error\":\"Not Found\"}", "application/json");
 
+        std::size_t content_length = 0;
+        if (const auto it = req.headers.find("Content-Length"); it != req.headers.end()) {
+            try {
+                content_length = static_cast<std::size_t>(std::stoul(it->second));
+            } catch (...) {
+                content_length = 0;
+            }
+        }
+
+        std::string body_remainder;
+        std::getline(stream, body_remainder, '\0');
+        req.body = body_remainder;
+        while (req.body.size() < content_length) {
+            const auto n = ::recv(client_fd, buffer, sizeof(buffer), 0);
+            if (n <= 0) {
+                break;
+            }
+            req.body.append(buffer, static_cast<std::size_t>(n));
+        }
+        if (req.body.size() > content_length) {
+            req.body.resize(content_length);
+        }
+
         if (method == "GET") {
-            const auto it = get_handlers_.find(req.path);
-            if (it != get_handlers_.end()) {
-                res = Response{};
-                it->second(req, res);
+            if (Dispatch(get_routes_, req, res)) {
+                // handled
             }
         } else if (method == "POST") {
-            const auto it = post_handlers_.find(req.path);
-            if (it != post_handlers_.end()) {
-                res = Response{};
-                it->second(req, res);
-            } else {
+            if (!Dispatch(post_routes_, req, res)) {
                 res.status = 405;
                 res.set_content("{\"error\":\"Method Not Allowed\"}", "application/json");
             }
@@ -236,8 +360,11 @@ private:
     }
 #endif
 
-    std::unordered_map<std::string, Handler> get_handlers_;
-    std::unordered_map<std::string, Handler> post_handlers_;
+    std::vector<Route> get_routes_;
+    std::vector<Route> post_routes_;
+    std::atomic<bool> running_{false};
+    int server_fd_{-1};
+    int listen_port_{0};
 };
 
 }  // namespace httplib

@@ -80,4 +80,8 @@ ServiceResult<std::vector<Encounter>> DefaultEncounterService::QueryEncounters(c
     return encounterRepository_.Query(filters);
 }
 
+ServiceResult<std::vector<AuditEntry>> DefaultEncounterService::QueryAudit(const storage::AuditDateRange& range) {
+    return auditRepository_.Query(range);
+}
+
 }  // namespace encounter_service::domain

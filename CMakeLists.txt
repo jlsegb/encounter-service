@@ -38,7 +38,13 @@ if (ENCOUNTER_SERVICE_BUILD_TESTS)
         tests/test_redaction.cpp
         tests/test_validation.cpp
         tests/test_audit.cpp
+        tests/test_auth.cpp
+        tests/test_error_mapper.cpp
+        tests/test_routes.cpp
         src/domain/encounter_service.cpp
+        src/http/auth.cpp
+        src/http/error_mapper.cpp
+        src/http/routes.cpp
         src/http/validation.cpp
         src/storage/in_memory_audit_repo.cpp
         src/storage/in_memory_encounter_repo.cpp

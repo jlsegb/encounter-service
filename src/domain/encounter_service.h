@@ -6,6 +6,7 @@
 
 #include "src/domain/errors.h"
 #include "src/domain/encounter_models.h"
+#include "src/domain/audit_models.h"
 #include "src/storage/audit_repo.h"
 #include "src/storage/encounter_repo.h"
 #include "src/util/clock.h"
@@ -31,6 +32,7 @@ public:
     virtual ServiceResult<Encounter> CreateEncounter(const CreateEncounterInput& input, const std::string& actor) = 0;
     virtual ServiceResult<Encounter> GetEncounter(const std::string& id, const std::string& actor) = 0;
     virtual ServiceResult<std::vector<Encounter>> QueryEncounters(const storage::EncounterQueryFilters& filters) = 0;
+    virtual ServiceResult<std::vector<AuditEntry>> QueryAudit(const storage::AuditDateRange& range) = 0;
 };
 
 class DefaultEncounterService final : public EncounterService {
@@ -43,6 +45,7 @@ public:
     ServiceResult<Encounter> CreateEncounter(const CreateEncounterInput& input, const std::string& actor) override;
     ServiceResult<Encounter> GetEncounter(const std::string& id, const std::string& actor) override;
     ServiceResult<std::vector<Encounter>> QueryEncounters(const storage::EncounterQueryFilters& filters) override;
+    ServiceResult<std::vector<AuditEntry>> QueryAudit(const storage::AuditDateRange& range) override;
 
 private:
     storage::EncounterRepository& encounterRepository_;
