@@ -5,6 +5,7 @@
 #else
 
 #include <atomic>
+#include <cctype>
 #include <functional>
 #include <cstring>
 #include <regex>
@@ -22,6 +23,17 @@
 
 namespace httplib {
 
+namespace detail {
+
+inline std::string ascii_lower(std::string s) {
+    for (char& ch : s) {
+        ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+    }
+    return s;
+}
+
+}  // namespace detail
+
 struct Request {
     struct Match {
         std::string value;
@@ -38,11 +50,11 @@ struct Request {
     std::vector<Match> matches;
 
     [[nodiscard]] bool has_header(const std::string& key) const {
-        return headers.find(key) != headers.end();
+        return headers.find(detail::ascii_lower(key)) != headers.end();
     }
 
     [[nodiscard]] std::string get_header_value(const std::string& key) const {
-        const auto it = headers.find(key);
+        const auto it = headers.find(detail::ascii_lower(key));
         return it == headers.end() ? std::string{} : it->second;
     }
 
@@ -301,7 +313,7 @@ private:
             }
             const auto key = Trim(header_line.substr(0, colon));
             const auto value = Trim(header_line.substr(colon + 1));
-            req.headers[key] = value;
+            req.headers[detail::ascii_lower(key)] = value;
         }
 
         Response res{};

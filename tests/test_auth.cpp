@@ -15,7 +15,7 @@ TEST_CASE("Authenticate returns unauthorized when API key is missing") {
 
 TEST_CASE("Authenticate returns unauthorized when API key is empty") {
     httplib::Request req{};
-    req.headers["X-API-Key"] = "";
+    req.headers["x-api-key"] = "";
 
     const auto result = encounter_service::http::Authenticate(req);
     REQUIRE(result.index() == 1);
@@ -27,9 +27,18 @@ TEST_CASE("Authenticate returns unauthorized when API key is empty") {
 
 TEST_CASE("Authenticate returns actor when API key is present") {
     httplib::Request req{};
-    req.headers["X-API-Key"] = "test-key";
+    req.headers["x-api-key"] = "test-key";
 
     const auto result = encounter_service::http::Authenticate(req);
     REQUIRE(result.index() == 0);
     REQUIRE(std::get<std::string>(result) == "api-key-actor");
+}
+
+TEST_CASE("Request header lookup is case-insensitive in httplib compat") {
+    httplib::Request req{};
+    req.headers["x-api-key"] = "test-key";
+
+    REQUIRE(req.has_header("X-API-Key"));
+    REQUIRE(req.has_header("x-api-key"));
+    REQUIRE(req.get_header_value("X-API-Key") == "test-key");
 }
