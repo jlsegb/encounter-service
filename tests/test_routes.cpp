@@ -8,12 +8,10 @@
 #include <variant>
 #include <vector>
 
-#if !defined(_WIN32)
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <unistd.h>
-#endif
 
 #include "src/domain/encounter_service.h"
 #include "src/http/routes.h"
@@ -100,7 +98,6 @@ struct RawHttpResponse {
     std::string body;
 };
 
-#if !defined(_WIN32)
 RawHttpResponse SendHttpRequest(int port, const std::string& raw) {
     RawHttpResponse out{};
 
@@ -181,7 +178,6 @@ private:
     httplib::Server server_{};
     std::thread thread_{};
 };
-#endif
 
 encounter_service::domain::Encounter MakeEncounter(std::string id, std::chrono::system_clock::time_point ts) {
     encounter_service::domain::Encounter encounter{};
@@ -200,9 +196,6 @@ encounter_service::domain::Encounter MakeEncounter(std::string id, std::chrono::
 }  // namespace
 
 TEST_CASE("Routes health endpoint returns 200") {
-#if defined(_WIN32)
-    SUCCEED("Windows socket path not implemented in test");
-#else
     FakeEncounterService service;
     FakeLogger logger;
     FakeRedactor redactor;
@@ -214,13 +207,9 @@ TEST_CASE("Routes health endpoint returns 200") {
 
     REQUIRE(resp.status == 200);
     REQUIRE(resp.body.find("\"status\":\"ok\"") != std::string::npos);
-#endif
 }
 
 TEST_CASE("Routes enforce auth on non-health endpoints") {
-#if defined(_WIN32)
-    SUCCEED("Windows socket path not implemented in test");
-#else
     FakeEncounterService service;
     FakeLogger logger;
     FakeRedactor redactor;
@@ -233,13 +222,9 @@ TEST_CASE("Routes enforce auth on non-health endpoints") {
     REQUIRE(resp.status == 401);
     REQUIRE(resp.body.find("\"code\":\"unauthorized\"") != std::string::npos);
     REQUIRE(service.query_called == false);
-#endif
 }
 
 TEST_CASE("Routes GET encounter by id uses regex route and calls service") {
-#if defined(_WIN32)
-    SUCCEED("Windows socket path not implemented in test");
-#else
     using namespace std::chrono;
     FakeEncounterService service;
     service.get_result = MakeEncounter("enc-abc_123", system_clock::time_point{seconds{1700000000}});
@@ -256,13 +241,29 @@ TEST_CASE("Routes GET encounter by id uses regex route and calls service") {
     REQUIRE(service.last_get_id == "enc-abc_123");
     REQUIRE(service.last_get_actor == "api-key-actor");
     REQUIRE(resp.body.find("\"encounterId\":\"enc-abc_123\"") != std::string::npos);
-#endif
+}
+
+TEST_CASE("Routes GET encounter by id maps not found error") {
+    FakeEncounterService service;
+    service.get_result = encounter_service::domain::DomainError{
+        .code = encounter_service::domain::DomainErrorCode::NotFound,
+        .message = "Encounter not found",
+        .details = std::nullopt
+    };
+    FakeLogger logger;
+    FakeRedactor redactor;
+    TestServer server(18085);
+    server.start(service, logger, redactor);
+
+    const auto resp = SendHttpRequest(server.port(),
+        "GET /encounters/enc-missing HTTP/1.1\r\nHost: localhost\r\nX-API-Key: key\r\n\r\n");
+
+    REQUIRE(resp.status == 404);
+    REQUIRE(service.get_called == true);
+    REQUIRE(resp.body.find("\"code\":\"not_found\"") != std::string::npos);
 }
 
 TEST_CASE("Routes GET encounters maps validation error for bad from query") {
-#if defined(_WIN32)
-    SUCCEED("Windows socket path not implemented in test");
-#else
     FakeEncounterService service;
     FakeLogger logger;
     FakeRedactor redactor;
@@ -276,13 +277,97 @@ TEST_CASE("Routes GET encounters maps validation error for bad from query") {
     REQUIRE(resp.body.find("\"code\":\"validation_error\"") != std::string::npos);
     REQUIRE(resp.body.find("\"path\":\"from\"") != std::string::npos);
     REQUIRE(service.query_called == false);
+}
+
+TEST_CASE("Routes GET encounters includes requestId in mapped error response") {
+    FakeEncounterService service;
+    FakeLogger logger;
+    FakeRedactor redactor;
+    TestServer server(18086);
+    server.start(service, logger, redactor);
+
+    const auto resp = SendHttpRequest(server.port(),
+        "GET /encounters?from=bad-date HTTP/1.1\r\nHost: localhost\r\nX-API-Key: key\r\nX-Request-Id: req-abc\r\n\r\n");
+
+    REQUIRE(resp.status == 400);
+    REQUIRE(resp.body.find("\"requestId\":\"req-abc\"") != std::string::npos);
+}
+
+TEST_CASE("Routes GET encounters returns serialized encounter array") {
+    using namespace std::chrono;
+    FakeEncounterService service;
+    service.query_result = std::vector<encounter_service::domain::Encounter>{
+        MakeEncounter("enc-1", system_clock::time_point{seconds{1700000000}}),
+        MakeEncounter("enc-2", system_clock::time_point{seconds{1700000100}})
+    };
+    FakeLogger logger;
+    FakeRedactor redactor;
+    TestServer server(18087);
+    server.start(service, logger, redactor);
+
+    const auto resp = SendHttpRequest(server.port(),
+        "GET /encounters HTTP/1.1\r\nHost: localhost\r\nX-API-Key: key\r\n\r\n");
+
+    REQUIRE(resp.status == 200);
+    REQUIRE(service.query_called == true);
+    REQUIRE(resp.body.find("\"encounterId\":\"enc-1\"") != std::string::npos);
+    REQUIRE(resp.body.find("\"encounterId\":\"enc-2\"") != std::string::npos);
+}
+
+TEST_CASE("Routes POST encounters maps validation error for invalid JSON") {
+    FakeEncounterService service;
+    FakeLogger logger;
+    FakeRedactor redactor;
+    TestServer server(18088);
+    server.start(service, logger, redactor);
+
+    const std::string body = "{invalid-json";
+    const auto request =
+        "POST /encounters HTTP/1.1\r\n"
+        "Host: localhost\r\n"
+        "X-API-Key: key\r\n"
+        "Content-Type: application/json\r\n"
+        "Content-Length: " + std::to_string(body.size()) + "\r\n\r\n" +
+        body;
+
+    const auto resp = SendHttpRequest(server.port(), request);
+    REQUIRE(resp.status == 400);
+    REQUIRE(resp.body.find("\"code\":\"validation_error\"") != std::string::npos);
+    REQUIRE(service.create_called == false);
+}
+
+TEST_CASE("Routes POST encounters returns 201 on success when real json parser is available") {
+#if __has_include("vendor/json.hpp")
+    using namespace std::chrono;
+    FakeEncounterService service;
+    service.create_result = MakeEncounter("enc-created", system_clock::time_point{seconds{1700000000}});
+    FakeLogger logger;
+    FakeRedactor redactor;
+    TestServer server(18089);
+    server.start(service, logger, redactor);
+
+    const std::string body =
+        "{\"patientId\":\"patient-1\",\"providerId\":\"provider-1\",\"encounterType\":\"visit\","
+        "\"encounterDate\":\"2026-02-25T00:00:00Z\",\"clinicalData\":{}}";
+    const auto request =
+        "POST /encounters HTTP/1.1\r\n"
+        "Host: localhost\r\n"
+        "X-API-Key: key\r\n"
+        "Content-Type: application/json\r\n"
+        "Content-Length: " + std::to_string(body.size()) + "\r\n\r\n" +
+        body;
+
+    const auto resp = SendHttpRequest(server.port(), request);
+    REQUIRE(resp.status == 201);
+    REQUIRE(service.create_called == true);
+    REQUIRE(service.last_create_actor == "api-key-actor");
+    REQUIRE(resp.body.find("\"encounterId\":\"enc-created\"") != std::string::npos);
+#else
+    SUCCEED("POST success route test requires vendor/json.hpp");
 #endif
 }
 
 TEST_CASE("Routes GET audit encounters returns serialized audit array") {
-#if defined(_WIN32)
-    SUCCEED("Windows socket path not implemented in test");
-#else
     using namespace std::chrono;
     FakeEncounterService service;
     service.audit_result = std::vector<encounter_service::domain::AuditEntry>{
@@ -305,5 +390,19 @@ TEST_CASE("Routes GET audit encounters returns serialized audit array") {
     REQUIRE(service.audit_query_called == true);
     REQUIRE(resp.body.find("\"action\":\"READ_ENCOUNTER\"") != std::string::npos);
     REQUIRE(resp.body.find("\"encounterId\":\"enc-1\"") != std::string::npos);
-#endif
+}
+
+TEST_CASE("Routes GET audit encounters maps validation error for bad to query") {
+    FakeEncounterService service;
+    FakeLogger logger;
+    FakeRedactor redactor;
+    TestServer server(18090);
+    server.start(service, logger, redactor);
+
+    const auto resp = SendHttpRequest(server.port(),
+        "GET /audit/encounters?to=bad-date HTTP/1.1\r\nHost: localhost\r\nX-API-Key: key\r\n\r\n");
+
+    REQUIRE(resp.status == 400);
+    REQUIRE(resp.body.find("\"path\":\"to\"") != std::string::npos);
+    REQUIRE(service.audit_query_called == false);
 }
