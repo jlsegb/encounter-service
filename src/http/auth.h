@@ -8,6 +8,8 @@
 
 namespace encounter_service::http {
 
+// Authenticates the request using `X-API-Key`.
+// Returns an actor identifier on success or a safe Unauthorized DomainError on failure.
 std::variant<std::string, domain::DomainError> Authenticate(const httplib::Request& request);
 
 }  // namespace encounter_service::http

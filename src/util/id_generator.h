@@ -10,11 +10,13 @@ namespace encounter_service::util {
 class IdGenerator {
 public:
     virtual ~IdGenerator() = default;
+    // Returns the next ID in the generator sequence.
     virtual std::string NextId() = 0;
 };
 
 class DefaultIdGenerator final : public IdGenerator {
 public:
+    // Creates an ID generator that emits `<prefix>-<counter>` values.
     explicit DefaultIdGenerator(std::string prefix = "id")
         : prefix_(std::move(prefix)) {}
 

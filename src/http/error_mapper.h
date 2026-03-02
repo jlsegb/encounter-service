@@ -13,6 +13,8 @@ struct HttpErrorResponse {
     nlohmann::json body;
 };
 
+// Maps a DomainError to HTTP status + standard JSON error envelope.
+// Includes `requestId` only when provided.
 HttpErrorResponse MapDomainError(const domain::DomainError& error,
                                 std::optional<std::string> requestId = std::nullopt);
 

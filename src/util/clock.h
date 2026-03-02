@@ -9,6 +9,7 @@ public:
     using TimePoint = std::chrono::system_clock::time_point;
 
     virtual ~Clock() = default;
+    // Returns the current wall-clock time.
     virtual TimePoint Now() const = 0;
 };
 

@@ -29,14 +29,19 @@ class EncounterService {
 public:
     virtual ~EncounterService() = default;
 
+    // Creates an encounter from validated input for `actor`.
     virtual ServiceResult<Encounter> CreateEncounter(const CreateEncounterInput& input, const std::string& actor) = 0;
+    // Returns the encounter identified by `id` and records actor read access on success.
     virtual ServiceResult<Encounter> GetEncounter(const std::string& id, const std::string& actor) = 0;
+    // Returns encounters matching `filters`.
     virtual ServiceResult<std::vector<Encounter>> QueryEncounters(const storage::EncounterQueryFilters& filters) = 0;
+    // Returns audit entries matching `range`.
     virtual ServiceResult<std::vector<AuditEntry>> QueryAudit(const storage::AuditDateRange& range) = 0;
 };
 
 class DefaultEncounterService final : public EncounterService {
 public:
+    // Creates a service that borrows repository/utility dependencies for its lifetime.
     DefaultEncounterService(storage::EncounterRepository& encounterRepository,
                             storage::AuditRepository& auditRepository,
                             util::Clock& clock,

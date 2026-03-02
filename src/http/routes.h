@@ -7,6 +7,9 @@
 
 namespace encounter_service::http {
 
+// Registers all HTTP handlers on `server`.
+// The server stores handlers that reference `encounterService`, `logger`, and `redactor`;
+// these dependencies must outlive request handling.
 void RegisterRoutes(httplib::Server& server,
                     domain::EncounterService& encounterService,
                     util::Logger& logger,
