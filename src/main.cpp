@@ -10,7 +10,7 @@
 #include <string>
 
 int main() {
-    constexpr const char* kBindAddress = "0.0.0.0";
+    constexpr const char* kBindAddress = "127.0.0.1";
     constexpr int kDefaultPort = 8080;
 
     encounter_service::storage::InMemoryEncounterRepository encounter_repo;

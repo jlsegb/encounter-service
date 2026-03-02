@@ -57,6 +57,7 @@ Build and run:
 
 Server default:
 - `http://localhost:8080`
+- Binds to `127.0.0.1` by default (loopback only)
 
 ## Testing
 
@@ -193,7 +194,10 @@ If extended beyond this exercise:
 - Make audit logging append-only and immutable at the storage layer (with retention/backup strategy).
 - Add authorization controls (not just authentication) to restrict access by user/role/patient context.
 - Replace demo API key auth with OAuth2/JWT or mTLS, plus secret management and key rotation.
+- Replace sequential public IDs with opaque random identifiers (for example UUIDv4/ULID).
 - Harden PHI protection with schema-aware redaction and a reviewed PHI field policy.
 - Introduce request-level structured logging with correlation/request IDs and centralized log ingestion.
 - Add pagination metadata, max query limits, and rate limiting.
+- Enforce request-size/time limits and stricter input/query bounds to reduce abuse risk.
+- Keep localhost-only bind as default (already implemented) and require explicit configuration for external interfaces.
 - Introduce metrics and observability (latency, error rates, audit append failures, tracing).
