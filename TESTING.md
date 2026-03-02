@@ -40,15 +40,14 @@ These cover business logic and isolated helpers:
 - Error mapping (`src/http/error_mapper.cpp`)
 - In-memory repositories
 - Time parsing/formatting utilities
-- Redaction skeleton behavior
+- Redaction behavior (top-level `patientId` / `clinicalData` scrubbing)
 
 ### Route integration tests
 
 `tests/test_routes.cpp` starts a local HTTP server and sends real HTTP requests to verify:
 - route registration/wiring
 - auth enforcement
-- validation/error mapping integration
-- endpoint serialization
+- basic endpoint happy paths and serialization
 
 These tests bind localhost ports during execution.
 When running with fallback `src/http/httplib_compat.h` (without `vendor/httplib.h`), the compat listener binds `INADDR_ANY` and ignores the `host` argument.

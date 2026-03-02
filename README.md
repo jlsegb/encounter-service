@@ -46,10 +46,6 @@ Vendored single-header dependencies (already in this repo):
 - `vendor/httplib.h` (`cpp-httplib`)
 - `vendor/json.hpp` (`nlohmann/json`)
 
-Compatibility note:
-- If `vendor/httplib.h` is not available, the project falls back to `src/http/httplib_compat.h`.
-- In that fallback server, `listen(host, port)` currently ignores `host` and binds `INADDR_ANY` (all local interfaces).
-
 ## Run Locally
 
 Build and run:
@@ -69,6 +65,7 @@ Quick commands:
 - `./scripts/smoke.sh` (manual API smoke flow against a running server)
 
 See `TESTING.md` for test structure, coverage areas, and notes about route integration tests binding localhost ports.
+`TESTING.md` also documents fallback-server and dependency caveats that can affect local behavior.
 
 ## Response Conventions
 
