@@ -50,6 +50,7 @@ std::vector<domain::Encounter> InMemoryEncounterRepository::Query(const Encounte
         }
     }
 
+    // Preserve deterministic ordering across runs regardless of unordered_map iteration order.
     std::sort(matches.begin(), matches.end(), [](const domain::Encounter& a, const domain::Encounter& b) {
         if (a.encounterDate != b.encounterDate) {
             return a.encounterDate < b.encounterDate;

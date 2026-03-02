@@ -26,6 +26,7 @@ std::optional<int> ParseIntPart(const std::string& s, std::size_t pos, std::size
 }
 
 std::optional<std::tm> ParseTmUtc(const std::string& value) {
+    // Accept either date-only form (midnight UTC) or full UTC timestamp with trailing 'Z'.
     const auto year = ParseIntPart(value, 0, 4);
     const auto month = ParseIntPart(value, 5, 2);
     const auto day = ParseIntPart(value, 8, 2);
@@ -63,6 +64,7 @@ std::optional<std::tm> ParseTmUtc(const std::string& value) {
 }
 
 std::optional<std::time_t> TimegmUtc(std::tm tm) {
+    // Convert a UTC tm to epoch seconds using platform-specific APIs.
 #if defined(_WIN32)
     const auto t = _mkgmtime(&tm);
 #else
@@ -91,6 +93,7 @@ std::optional<std::chrono::system_clock::time_point> ParseIso8601Utc(const std::
 std::string FormatIso8601Utc(std::chrono::system_clock::time_point value) {
     const auto t = std::chrono::system_clock::to_time_t(value);
     std::tm tm{};
+    // Use thread-safe UTC conversion functions on each platform.
 #if defined(_WIN32)
     gmtime_s(&tm, &t);
 #else

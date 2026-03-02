@@ -161,6 +161,7 @@ public:
 #if !defined(_WIN32)
         running_.store(false);
         if (listen_port_ > 0) {
+            // Wake the blocking accept() call so listen() can observe running_=false and exit.
             const int wake_fd = ::socket(AF_INET, SOCK_STREAM, 0);
             if (wake_fd >= 0) {
                 sockaddr_in addr{};
@@ -321,7 +322,7 @@ private:
         res.set_content("{\"error\":\"Not Found\"}", "application/json");
 
         std::size_t content_length = 0;
-        if (const auto it = req.headers.find("Content-Length"); it != req.headers.end()) {
+        if (const auto it = req.headers.find("content-length"); it != req.headers.end()) {
             try {
                 content_length = static_cast<std::size_t>(std::stoul(it->second));
             } catch (...) {
@@ -332,6 +333,7 @@ private:
         std::string body_remainder;
         std::getline(stream, body_remainder, '\0');
         req.body = body_remainder;
+        // Header parsing may stop before the full body arrives; keep reading until content-length.
         while (req.body.size() < content_length) {
             const auto n = ::recv(client_fd, buffer, sizeof(buffer), 0);
             if (n <= 0) {
@@ -339,6 +341,7 @@ private:
             }
             req.body.append(buffer, static_cast<std::size_t>(n));
         }
+        // Ignore any trailing bytes past the declared content-length for deterministic handling.
         if (req.body.size() > content_length) {
             req.body.resize(content_length);
         }
@@ -374,8 +377,11 @@ private:
 
     std::vector<Route> get_routes_;
     std::vector<Route> post_routes_;
+    // True while listen() should continue accepting new connections.
     std::atomic<bool> running_{false};
+    // Listening socket descriptor; -1 means no active listener.
     int server_fd_{-1};
+    // Bound port used by stop() to wake accept(); 0 before listen() starts.
     int listen_port_{0};
 };
 

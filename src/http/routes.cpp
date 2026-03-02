@@ -77,6 +77,7 @@ std::variant<nlohmann::json, domain::DomainError> ParseRequestJson(const httplib
     }
 #else
     (void)req;
+    // Keep this branch compile-safe when the single-header JSON dependency is absent.
     return domain::DomainError{
         .code = domain::DomainErrorCode::Validation,
         .message = "Request validation failed",

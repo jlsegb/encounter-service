@@ -28,6 +28,7 @@ ServiceResult<Encounter> DefaultEncounterService::CreateEncounter(const CreateEn
         return MakeError(DomainErrorCode::Unauthorized, "Unauthorized");
     }
 
+    // Use a single timestamp so metadata and audit entries for the same creation stay consistent.
     const auto now = clock_.Now();
 
     const Encounter encounter{

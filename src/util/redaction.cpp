@@ -8,6 +8,7 @@ namespace encounter_service::util {
 
 namespace {
 
+// Replacement marker used for redacted sensitive values in structured payloads.
 constexpr const char* kRedacted = "[REDACTED]";
 
 std::string NormalizeKey(std::string key) {
