@@ -19,6 +19,7 @@ struct Encounter {
     std::string providerId;
     std::chrono::system_clock::time_point encounterDate{};
     std::string encounterType;
+    // User-provided clinical payload; treat as potentially PHI-bearing.
     nlohmann::json clinicalData;
     EncounterMetadata metadata;
 };

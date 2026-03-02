@@ -24,47 +24,26 @@ std::string NormalizeKey(std::string key) {
 
 bool IsSensitiveKey(const std::string& key) {
     static const std::unordered_set<std::string> kSensitiveKeys = {
-        "patientid",
-        "name",
-        "firstname",
-        "lastname",
-        "fullname",
-        "dob",
-        "dateofbirth",
-        "ssn",
-        "mrn"
+        "clinicaldata",
+        "patientid"
     };
     return kSensitiveKeys.find(NormalizeKey(key)) != kSensitiveKeys.end();
-}
-
-nlohmann::json RedactRecursive(const nlohmann::json& input) {
-    if (input.is_object()) {
-        nlohmann::json out = nlohmann::json::object();
-        for (auto it = input.begin(); it != input.end(); ++it) {
-            if (IsSensitiveKey(it.key())) {
-                out[it.key()] = kRedacted;
-            } else {
-                out[it.key()] = RedactRecursive(it.value());
-            }
-        }
-        return out;
-    }
-
-    if (input.is_array()) {
-        nlohmann::json out = nlohmann::json::array();
-        for (const auto& item : input) {
-            out.push_back(RedactRecursive(item));
-        }
-        return out;
-    }
-
-    return input;
 }
 
 }  // namespace
 
 nlohmann::json BasicRedactor::RedactJson(const nlohmann::json& input) const {
-    return RedactRecursive(input);
+    if (!input.is_object()) {
+        return input;
+    }
+
+    nlohmann::json out = input;
+    for (auto it = out.begin(); it != out.end(); ++it) {
+        if (IsSensitiveKey(it.key())) {
+            it.value() = kRedacted;
+        }
+    }
+    return out;
 }
 
 }  // namespace encounter_service::util

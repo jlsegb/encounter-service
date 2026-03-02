@@ -102,7 +102,7 @@ Required JSON fields:
 - `providerId` (string, provider identifier)
 - `encounterDate` (ISO-8601 UTC string for the clinical encounter timestamp: `YYYY-MM-DD` or `YYYY-MM-DDTHH:MM:SSZ`)
 - `encounterType` (string, encounter classification such as `initial_assessment`)
-- `clinicalData` (object, structured clinical payload)
+- `clinicalData` (object, structured clinical payload; treated as potentially PHI-bearing)
 
 ### List Encounters (`GET /encounters`)
 
@@ -169,7 +169,7 @@ Sensitive fields include:
 Current safeguards:
 - Domain error messages are safe (no PHI)
 - HTTP logs avoid request bodies and PHI fields
-- Recursive redaction layer scrubs common PHI-like keys in structured logs (e.g., `patientId`, `name`, `dob`)
+- Redaction layer scrubs top-level `patientId` and redacts `clinicalData` wholesale when present in structured log payloads
 - Audit entries record actor/action/encounter ID without clinical payloads
 
 ## Current Limitations
