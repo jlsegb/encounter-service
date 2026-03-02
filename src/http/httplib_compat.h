@@ -107,6 +107,7 @@ public:
         (void)port;
         return false;
 #else
+        // The lightweight compat server binds INADDR_ANY and currently ignores `host`.
         (void)host;
         listen_port_ = port;
 

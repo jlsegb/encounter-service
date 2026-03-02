@@ -46,6 +46,10 @@ Vendored single-header dependencies (already in this repo):
 - `vendor/httplib.h` (`cpp-httplib`)
 - `vendor/json.hpp` (`nlohmann/json`)
 
+Compatibility note:
+- If `vendor/httplib.h` is not available, the project falls back to `src/http/httplib_compat.h`.
+- In that fallback server, `listen(host, port)` currently ignores `host` and binds `INADDR_ANY` (all local interfaces).
+
 ## Run Locally
 
 Build and run:
@@ -171,6 +175,9 @@ Current safeguards:
 - HTTP logs avoid request bodies and PHI fields
 - Redaction layer scrubs top-level `patientId` and redacts `clinicalData` wholesale when present in structured log payloads
 - Audit entries record actor/action/encounter ID without clinical payloads
+
+API payload note:
+- Encounter responses intentionally include `patientId` and `clinicalData`; redaction applies to logging paths, not response payloads.
 
 ## Current Limitations
 

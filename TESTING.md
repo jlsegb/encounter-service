@@ -51,6 +51,7 @@ These cover business logic and isolated helpers:
 - endpoint serialization
 
 These tests bind localhost ports during execution.
+When running with fallback `src/http/httplib_compat.h` (without `vendor/httplib.h`), the compat listener binds `INADDR_ANY` and ignores the `host` argument.
 
 ## Determinism Strategy
 
@@ -74,7 +75,7 @@ Covered:
 - `src/util/time.cpp`
 
 Partially covered / light coverage:
-- `src/util/redaction.cpp` (currently a stub passthrough)
+- `src/util/redaction.cpp` (top-level key redaction behavior only)
 - `src/util/logger.cpp` (not directly unit tested)
 - `src/util/id_generator.h` / `src/util/request_id.h` (not directly unit tested)
 
@@ -83,3 +84,6 @@ Partially covered / light coverage:
 - With vendored `cpp-httplib` and `nlohmann/json` present, tests compile against the real headers.
 - Route integration tests may require running outside restricted sandboxes because they bind localhost ports.
 - The smoke test is not a replacement for unit tests; it is a quick end-to-end sanity check.
+- Route integration tests in `tests/test_routes.cpp` use fixed ports (`18080+`) and can fail when those ports are already in use.
+- If `vendor/json.hpp` is missing, `POST /encounters` JSON parsing is unavailable and returns a validation error.
+- Fallback `src/http/httplib_compat.h` behavior is intentionally minimal and may differ from real `cpp-httplib` (for example, basic query parsing without URL decoding).

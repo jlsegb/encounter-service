@@ -2,6 +2,7 @@
 
 #include <chrono>
 #include <cstring>
+#include <map>
 #include <optional>
 #include <sstream>
 #include <string>
@@ -98,6 +99,28 @@ struct RawHttpResponse {
     int status{0};
     std::string body;
 };
+
+struct TestHttpRequest {
+    std::string method;
+    std::string path;
+    std::map<std::string, std::string> headers;
+    std::string body;
+};
+
+std::string BuildRawHttpRequest(const TestHttpRequest& request) {
+    std::ostringstream out;
+    out << request.method << " " << request.path << " HTTP/1.1\r\n";
+    out << "Host: localhost\r\n";
+    for (const auto& [key, value] : request.headers) {
+        out << key << ": " << value << "\r\n";
+    }
+    if (!request.body.empty()) {
+        out << "Content-Length: " << request.body.size() << "\r\n";
+    }
+    out << "\r\n";
+    out << request.body;
+    return out.str();
+}
 
 RawHttpResponse SendHttpRequest(int port, const std::string& raw) {
 #if __has_include("vendor/httplib.h")
@@ -226,6 +249,10 @@ RawHttpResponse SendHttpRequest(int port, const std::string& raw) {
 #endif
 }
 
+RawHttpResponse SendHttpRequest(int port, const TestHttpRequest& request) {
+    return SendHttpRequest(port, BuildRawHttpRequest(request));
+}
+
 class TestServer {
 public:
     explicit TestServer(int port)
@@ -281,8 +308,10 @@ TEST_CASE("Routes health endpoint returns 200") {
     TestServer server(18080);
     server.start(service, logger, redactor);
 
-    const auto resp = SendHttpRequest(server.port(),
-        "GET /health HTTP/1.1\r\nHost: localhost\r\n\r\n");
+    const auto resp = SendHttpRequest(server.port(), TestHttpRequest{
+        .method = "GET",
+        .path = "/health"
+    });
 
     REQUIRE(resp.status == 200);
     REQUIRE(resp.body.find("\"status\":\"ok\"") != std::string::npos);
@@ -295,8 +324,10 @@ TEST_CASE("Routes enforce auth on non-health endpoints") {
     TestServer server(18081);
     server.start(service, logger, redactor);
 
-    const auto resp = SendHttpRequest(server.port(),
-        "GET /encounters HTTP/1.1\r\nHost: localhost\r\n\r\n");
+    const auto resp = SendHttpRequest(server.port(), TestHttpRequest{
+        .method = "GET",
+        .path = "/encounters"
+    });
 
     REQUIRE(resp.status == 401);
     REQUIRE(resp.body.find("\"code\":\"unauthorized\"") != std::string::npos);
@@ -312,8 +343,11 @@ TEST_CASE("Routes GET encounter by id uses regex route and calls service") {
     TestServer server(18082);
     server.start(service, logger, redactor);
 
-    const auto resp = SendHttpRequest(server.port(),
-        "GET /encounters/enc-abc_123 HTTP/1.1\r\nHost: localhost\r\nX-API-Key: key\r\n\r\n");
+    const auto resp = SendHttpRequest(server.port(), TestHttpRequest{
+        .method = "GET",
+        .path = "/encounters/enc-abc_123",
+        .headers = {{"X-API-Key", "key"}}
+    });
 
     REQUIRE(resp.status == 200);
     REQUIRE(service.get_called == true);
@@ -334,8 +368,11 @@ TEST_CASE("Routes GET encounters returns serialized encounter array") {
     TestServer server(18087);
     server.start(service, logger, redactor);
 
-    const auto resp = SendHttpRequest(server.port(),
-        "GET /encounters HTTP/1.1\r\nHost: localhost\r\nX-API-Key: key\r\n\r\n");
+    const auto resp = SendHttpRequest(server.port(), TestHttpRequest{
+        .method = "GET",
+        .path = "/encounters",
+        .headers = {{"X-API-Key", "key"}}
+    });
 
     REQUIRE(resp.status == 200);
     REQUIRE(service.query_called == true);
@@ -356,15 +393,15 @@ TEST_CASE("Routes POST encounters returns 201 on success when real json parser i
     const std::string body =
         "{\"patientId\":\"patient-1\",\"providerId\":\"provider-1\",\"encounterType\":\"visit\","
         "\"encounterDate\":\"2026-02-25T00:00:00Z\",\"clinicalData\":{}}";
-    const auto request =
-        "POST /encounters HTTP/1.1\r\n"
-        "Host: localhost\r\n"
-        "X-API-Key: key\r\n"
-        "Content-Type: application/json\r\n"
-        "Content-Length: " + std::to_string(body.size()) + "\r\n\r\n" +
-        body;
-
-    const auto resp = SendHttpRequest(server.port(), request);
+    const auto resp = SendHttpRequest(server.port(), TestHttpRequest{
+        .method = "POST",
+        .path = "/encounters",
+        .headers = {
+            {"X-API-Key", "key"},
+            {"Content-Type", "application/json"}
+        },
+        .body = body
+    });
     REQUIRE(resp.status == 201);
     REQUIRE(service.create_called == true);
     REQUIRE(service.last_create_actor == "api-key-actor");
@@ -390,8 +427,11 @@ TEST_CASE("Routes GET audit encounters returns serialized audit array") {
     TestServer server(18084);
     server.start(service, logger, redactor);
 
-    const auto resp = SendHttpRequest(server.port(),
-        "GET /audit/encounters?from=2026-02-25 HTTP/1.1\r\nHost: localhost\r\nX-API-Key: key\r\n\r\n");
+    const auto resp = SendHttpRequest(server.port(), TestHttpRequest{
+        .method = "GET",
+        .path = "/audit/encounters?from=2026-02-25",
+        .headers = {{"X-API-Key", "key"}}
+    });
 
     REQUIRE(resp.status == 200);
     REQUIRE(service.audit_query_called == true);

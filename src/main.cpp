@@ -7,7 +7,12 @@
 #include "src/util/logger.h"
 #include "src/util/redaction.h"
 
+#include <string>
+
 int main() {
+    constexpr const char* kBindAddress = "0.0.0.0";
+    constexpr int kDefaultPort = 8080;
+
     encounter_service::storage::InMemoryEncounterRepository encounter_repo;
     encounter_service::storage::InMemoryAuditRepository audit_repo;
     encounter_service::util::SystemClock clock;
@@ -24,7 +29,8 @@ int main() {
     httplib::Server server;
     encounter_service::http::RegisterRoutes(server, service, logger, redactor);
 
-    logger.Log(encounter_service::util::LogLevel::Info, "Starting Encounter Service on port 8080");
-    const bool ok = server.listen("0.0.0.0", 8080);
+    logger.Log(encounter_service::util::LogLevel::Info,
+               "Starting Encounter Service on port " + std::to_string(kDefaultPort));
+    const bool ok = server.listen(kBindAddress, kDefaultPort);
     return ok ? 0 : 1;
 }

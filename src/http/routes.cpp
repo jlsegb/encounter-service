@@ -14,6 +14,14 @@ namespace encounter_service::http {
 
 namespace {
 
+constexpr const char* kMethodGet = "GET";
+constexpr const char* kMethodPost = "POST";
+constexpr const char* kPathHealth = "/health";
+constexpr const char* kPathEncounters = "/encounters";
+constexpr const char* kPathEncounterByIdPattern = R"(/encounters/([A-Za-z0-9_-]+))";
+constexpr const char* kPathEncounterByIdLog = "/encounters/:encounterId";
+constexpr const char* kPathAuditEncounters = "/audit/encounters";
+
 std::optional<std::string> GetRequestId(const httplib::Request& req) {
     if (!req.has_header("X-Request-Id")) {
         return std::nullopt;
@@ -148,20 +156,20 @@ void RegisterRoutes(httplib::Server& server,
     auto* log = &logger;
     auto* redact = &redactor;
 
-    server.Get("/health", [log](const httplib::Request&, httplib::Response& res) {
+    server.Get(kPathHealth, [log](const httplib::Request&, httplib::Response& res) {
         log->Log(util::LogLevel::Info, "GET /health");
         nlohmann::json body = nlohmann::json::object();
         body["status"] = "ok";
         WriteJson(res, 200, body);
     });
 
-    server.Post("/encounters", [service, log, redact](const httplib::Request& req, httplib::Response& res) {
+    server.Post(kPathEncounters, [service, log, redact](const httplib::Request& req, httplib::Response& res) {
         const auto requestId = GetRequestId(req);
 
         const auto auth = Authenticate(req);
         if (std::holds_alternative<domain::DomainError>(auth)) {
             WriteDomainError(res, std::get<domain::DomainError>(auth), requestId);
-            LogHttpResult(*log, *redact, "POST", "/encounters", requestId, res.status);
+            LogHttpResult(*log, *redact, kMethodPost, kPathEncounters, requestId, res.status);
             return;
         }
         const auto actor = std::get<std::string>(auth);
@@ -169,14 +177,14 @@ void RegisterRoutes(httplib::Server& server,
         const auto parsedBody = ParseRequestJson(req);
         if (std::holds_alternative<domain::DomainError>(parsedBody)) {
             WriteDomainError(res, std::get<domain::DomainError>(parsedBody), requestId);
-            LogHttpResult(*log, *redact, "POST", "/encounters", requestId, res.status);
+            LogHttpResult(*log, *redact, kMethodPost, kPathEncounters, requestId, res.status);
             return;
         }
 
         const auto validation = ValidateCreateEncounterRequest(std::get<nlohmann::json>(parsedBody));
         if (std::holds_alternative<domain::DomainError>(validation)) {
             WriteDomainError(res, std::get<domain::DomainError>(validation), requestId);
-            LogHttpResult(*log, *redact, "POST", "/encounters", requestId, res.status);
+            LogHttpResult(*log, *redact, kMethodPost, kPathEncounters, requestId, res.status);
             return;
         }
 
@@ -184,21 +192,21 @@ void RegisterRoutes(httplib::Server& server,
             std::get<domain::CreateEncounterInput>(validation), actor);
         if (std::holds_alternative<domain::DomainError>(serviceResult)) {
             WriteDomainError(res, std::get<domain::DomainError>(serviceResult), requestId);
-            LogHttpResult(*log, *redact, "POST", "/encounters", requestId, res.status);
+            LogHttpResult(*log, *redact, kMethodPost, kPathEncounters, requestId, res.status);
             return;
         }
 
         WriteJson(res, 201, EncounterToJson(std::get<domain::Encounter>(serviceResult)));
-        LogHttpResult(*log, *redact, "POST", "/encounters", requestId, res.status);
+        LogHttpResult(*log, *redact, kMethodPost, kPathEncounters, requestId, res.status);
     });
 
-    server.Get(R"(/encounters/([A-Za-z0-9_-]+))", [service, log, redact](const httplib::Request& req, httplib::Response& res) {
+    server.Get(kPathEncounterByIdPattern, [service, log, redact](const httplib::Request& req, httplib::Response& res) {
         const auto requestId = GetRequestId(req);
 
         const auto auth = Authenticate(req);
         if (std::holds_alternative<domain::DomainError>(auth)) {
             WriteDomainError(res, std::get<domain::DomainError>(auth), requestId);
-            LogHttpResult(*log, *redact, "GET", "/encounters/:encounterId", requestId, res.status);
+            LogHttpResult(*log, *redact, kMethodGet, kPathEncounterByIdLog, requestId, res.status);
             return;
         }
         const auto actor = std::get<std::string>(auth);
@@ -210,28 +218,28 @@ void RegisterRoutes(httplib::Server& server,
                                                 .message = "Internal error",
                                                 .details = std::nullopt},
                              requestId);
-            LogHttpResult(*log, *redact, "GET", "/encounters/:encounterId", requestId, res.status);
+            LogHttpResult(*log, *redact, kMethodGet, kPathEncounterByIdLog, requestId, res.status);
             return;
         }
 
         const auto serviceResult = service->GetEncounter(*encounterId, actor);
         if (std::holds_alternative<domain::DomainError>(serviceResult)) {
             WriteDomainError(res, std::get<domain::DomainError>(serviceResult), requestId);
-            LogHttpResult(*log, *redact, "GET", "/encounters/:encounterId", requestId, res.status);
+            LogHttpResult(*log, *redact, kMethodGet, kPathEncounterByIdLog, requestId, res.status);
             return;
         }
 
         WriteJson(res, 200, EncounterToJson(std::get<domain::Encounter>(serviceResult)));
-        LogHttpResult(*log, *redact, "GET", "/encounters/:encounterId", requestId, res.status);
+        LogHttpResult(*log, *redact, kMethodGet, kPathEncounterByIdLog, requestId, res.status);
     });
 
-    server.Get("/encounters", [service, log, redact](const httplib::Request& req, httplib::Response& res) {
+    server.Get(kPathEncounters, [service, log, redact](const httplib::Request& req, httplib::Response& res) {
         const auto requestId = GetRequestId(req);
 
         const auto auth = Authenticate(req);
         if (std::holds_alternative<domain::DomainError>(auth)) {
             WriteDomainError(res, std::get<domain::DomainError>(auth), requestId);
-            LogHttpResult(*log, *redact, "GET", "/encounters", requestId, res.status);
+            LogHttpResult(*log, *redact, kMethodGet, kPathEncounters, requestId, res.status);
             return;
         }
         (void)std::get<std::string>(auth);
@@ -239,28 +247,28 @@ void RegisterRoutes(httplib::Server& server,
         const auto validation = ValidateEncounterQuery(req);
         if (std::holds_alternative<domain::DomainError>(validation)) {
             WriteDomainError(res, std::get<domain::DomainError>(validation), requestId);
-            LogHttpResult(*log, *redact, "GET", "/encounters", requestId, res.status);
+            LogHttpResult(*log, *redact, kMethodGet, kPathEncounters, requestId, res.status);
             return;
         }
 
         const auto serviceResult = service->QueryEncounters(std::get<storage::EncounterQueryFilters>(validation));
         if (std::holds_alternative<domain::DomainError>(serviceResult)) {
             WriteDomainError(res, std::get<domain::DomainError>(serviceResult), requestId);
-            LogHttpResult(*log, *redact, "GET", "/encounters", requestId, res.status);
+            LogHttpResult(*log, *redact, kMethodGet, kPathEncounters, requestId, res.status);
             return;
         }
 
         WriteJson(res, 200, EncounterListToJson(std::get<std::vector<domain::Encounter>>(serviceResult)));
-        LogHttpResult(*log, *redact, "GET", "/encounters", requestId, res.status);
+        LogHttpResult(*log, *redact, kMethodGet, kPathEncounters, requestId, res.status);
     });
 
-    server.Get("/audit/encounters", [service, log, redact](const httplib::Request& req, httplib::Response& res) {
+    server.Get(kPathAuditEncounters, [service, log, redact](const httplib::Request& req, httplib::Response& res) {
         const auto requestId = GetRequestId(req);
 
         const auto auth = Authenticate(req);
         if (std::holds_alternative<domain::DomainError>(auth)) {
             WriteDomainError(res, std::get<domain::DomainError>(auth), requestId);
-            LogHttpResult(*log, *redact, "GET", "/audit/encounters", requestId, res.status);
+            LogHttpResult(*log, *redact, kMethodGet, kPathAuditEncounters, requestId, res.status);
             return;
         }
         (void)std::get<std::string>(auth);
@@ -268,19 +276,19 @@ void RegisterRoutes(httplib::Server& server,
         const auto validation = ValidateAuditQuery(req);
         if (std::holds_alternative<domain::DomainError>(validation)) {
             WriteDomainError(res, std::get<domain::DomainError>(validation), requestId);
-            LogHttpResult(*log, *redact, "GET", "/audit/encounters", requestId, res.status);
+            LogHttpResult(*log, *redact, kMethodGet, kPathAuditEncounters, requestId, res.status);
             return;
         }
 
         const auto serviceResult = service->QueryAudit(std::get<storage::AuditDateRange>(validation));
         if (std::holds_alternative<domain::DomainError>(serviceResult)) {
             WriteDomainError(res, std::get<domain::DomainError>(serviceResult), requestId);
-            LogHttpResult(*log, *redact, "GET", "/audit/encounters", requestId, res.status);
+            LogHttpResult(*log, *redact, kMethodGet, kPathAuditEncounters, requestId, res.status);
             return;
         }
 
         WriteJson(res, 200, AuditListToJson(std::get<std::vector<domain::AuditEntry>>(serviceResult)));
-        LogHttpResult(*log, *redact, "GET", "/audit/encounters", requestId, res.status);
+        LogHttpResult(*log, *redact, kMethodGet, kPathAuditEncounters, requestId, res.status);
     });
 }
 
